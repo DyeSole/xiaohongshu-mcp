@@ -31,7 +31,7 @@ func NormalizeNoteURL(raw, feedID, xsecToken string, resolve func(string) (strin
 		}
 		host := strings.ToLower(parsed.Hostname())
 		switch {
-		case host == "xhslink.com" || strings.HasSuffix(host, ".xhslink.com"):
+		case isXHSShortHost(host):
 			if link, err = resolve(link); err != nil {
 				return "", fmt.Errorf("解析短链失败: %w", err)
 			}
@@ -48,6 +48,16 @@ func NormalizeNoteURL(raw, feedID, xsecToken string, resolve func(string) (strin
 		}
 	}
 	return "", fmt.Errorf("短链跳转次数过多")
+}
+
+// isXHSShortHost 小红书短链有 xhslink.com 和 xhslink.cn 两种。
+func isXHSShortHost(host string) bool {
+	for _, domain := range []string{"xhslink.com", "xhslink.cn"} {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildNoteURL(feedID, xsecToken string) string {
