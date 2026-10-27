@@ -53,6 +53,14 @@ type FilterOption struct {
 	Location    string `json:"location,omitempty" jsonschema:"位置距离: 不限|同城|附近,默认为'不限'"`
 }
 
+// AskDiandianArgs 问点点的参数
+type AskDiandianArgs struct {
+	URL       string `json:"url,omitempty" jsonschema:"小红书笔记链接，可以是 xhslink 短链、App 分享文案或完整链接"`
+	FeedID    string `json:"feed_id,omitempty" jsonschema:"笔记ID，和 xsec_token 一起用，可代替 url"`
+	XsecToken string `json:"xsec_token,omitempty" jsonschema:"访问令牌，和 feed_id 一起用"`
+	Question  string `json:"question,omitempty" jsonschema:"要问点点的问题，默认问这篇笔记讲了啥"`
+}
+
 // FeedDetailArgs 获取Feed详情的参数
 type FeedDetailArgs struct {
 	FeedID           string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -280,6 +288,22 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("search_feeds", func(ctx context.Context, req *mcp.CallToolRequest, args SearchFeedsArgs) (*mcp.CallToolResult, any, error) {
 			result := appServer.handleSearchFeeds(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 问点点：带着笔记去问小红书自己的 AI
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "ask_diandian",
+			Description: "带着一篇小红书笔记去问点点（小红书 AI），点点会读正文、字幕和画面后回答。需要国内账号已登录；每问一次会在点点里留下一条对话记录",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Ask Diandian",
+				DestructiveHint: boolPtr(false),
+			},
+		},
+		withPanicRecovery("ask_diandian", func(ctx context.Context, req *mcp.CallToolRequest, args AskDiandianArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleAskDiandian(ctx, args)
 			return convertToMCPResult(result), nil, nil
 		}),
 	)

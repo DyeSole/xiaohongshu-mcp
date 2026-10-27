@@ -834,3 +834,18 @@ func (s *AppServer) handleLikeNotification(ctx context.Context, commentID string
 
 	return marshalMCPResult(result, "点赞")
 }
+
+// handleAskDiandian 处理问点点
+func (s *AppServer) handleAskDiandian(ctx context.Context, args AskDiandianArgs) *MCPToolResult {
+	logrus.Infof("MCP: 问点点 - %s%s", args.URL, args.FeedID)
+	result, err := s.xiaohongshuService.AskDiandian(ctx, AskDiandianRequest(args))
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "问点点失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: result.Answer}},
+	}
+}

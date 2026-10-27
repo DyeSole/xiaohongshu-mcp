@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -65,12 +66,16 @@ func NewBrowser(headless bool, options ...Option) *headless_browser.Browser {
 	opts := []headless_browser.Option{
 		headless_browser.WithHeadless(headless),
 		// 用内置浏览器的默认配置，不强制 UA。
-		headless_browser.WithFingerprint(""), // 空 = 按运行 OS 自动：Linux→windows，mac→macos
+		headless_browser.WithFingerprint(os.Getenv("XHS_FP_PLATFORM")), // 空 = 按运行 OS 自动：Linux→windows，mac→macos；走 Mac 出口时设 macos
 		headless_browser.WithStealthJS(false),
 		headless_browser.WithLanguage("zh-CN"), // 面向小红书
 		// 品牌报 Chrome。
 		// 注：hardware-concurrency 不设，交给 seed 派生。
-		headless_browser.WithExtraFlags(map[string]string{"fingerprint-brand": "Chrome"}),
+		// WebRTC 不许绕过代理直连 UDP，避免走代理时暴露服务器真实 IP。
+		headless_browser.WithExtraFlags(map[string]string{
+			"fingerprint-brand":               "Chrome",
+			"force-webrtc-ip-handling-policy": "disable_non_proxied_udp",
+		}),
 	}
 	opts = append(opts, headless_browser.WithChromeBinPath(binPath))
 

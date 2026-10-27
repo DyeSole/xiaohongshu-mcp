@@ -69,6 +69,9 @@ func browserCacheDir() (string, error) {
 // EnsureBrowser 确保本地存在内置浏览器二进制，返回其路径。
 // 已缓存则直接返回；否则下载 → 校验 SHA256 → 解压。当前平台无预编译二进制时返回 error。
 func EnsureBrowser() (string, error) {
+	if bin := os.Getenv("XHS_BROWSER_BIN"); bin != "" {
+		return bin, nil
+	}
 	asset, binName, ok := platformAsset()
 	if !ok {
 		return "", fmt.Errorf("当前平台 %s/%s 无预编译浏览器，暂不支持", runtime.GOOS, runtime.GOARCH)

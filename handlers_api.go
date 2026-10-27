@@ -170,6 +170,30 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 	respondSuccess(c, result, "搜索Feeds成功")
 }
 
+// askDiandianHandler 带着笔记问点点
+func (s *AppServer) askDiandianHandler(c *gin.Context) {
+	var req AskDiandianRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+	if req.URL == "" && (req.FeedID == "" || req.XsecToken == "") {
+		respondError(c, http.StatusBadRequest, "MISSING_NOTE",
+			"缺少笔记", "url or feed_id + xsec_token is required")
+		return
+	}
+
+	result, err := s.xiaohongshuService.AskDiandian(c.Request.Context(), req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ASK_DIANDIAN_FAILED",
+			"问点点失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "问点点成功")
+}
+
 // getFeedDetailHandler 获取Feed详情
 func (s *AppServer) getFeedDetailHandler(c *gin.Context) {
 	var req FeedDetailRequest
