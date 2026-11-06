@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/xpzouying/xiaohongshu-mcp/cookies"
 	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
@@ -192,6 +193,20 @@ func (s *AppServer) askDiandianHandler(c *gin.Context) {
 	}
 
 	respondSuccess(c, result, "问点点成功")
+}
+
+func (s *AppServer) findDiandianHandler(c *gin.Context) {
+	var req FindDiandianRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Keyword) == "" {
+		respondError(c, http.StatusBadRequest, "MISSING_KEYWORD", "缺少关键词", "keyword is required")
+		return
+	}
+	result, err := s.xiaohongshuService.FindDiandianNotes(c.Request.Context(), req)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "FIND_DIANDIAN_FAILED", "点点找笔记失败", err.Error())
+		return
+	}
+	respondSuccess(c, result, "点点找笔记成功")
 }
 
 // getFeedDetailHandler 获取Feed详情

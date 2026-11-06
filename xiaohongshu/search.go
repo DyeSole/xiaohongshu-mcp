@@ -116,7 +116,9 @@ func (s *SearchAction) Search(ctx context.Context, keyword string, filters ...Fi
 
 	searchURL := makeSearchURL(keyword)
 	page.MustNavigate(searchURL)
-	page.MustWaitStable()
+	// 2026-11 起搜索页一直有请求/动画，WaitStable 永远等不到，会把 60s 全吃光再超时；
+	// 改成等加载完 + 等 __INITIAL_STATE__ 出来。
+	page.MustWaitLoad()
 	page.MustWait(`() => window.__INITIAL_STATE__ !== undefined`)
 	humanize.Delay(ctx, humanize.AfterNavigate)
 

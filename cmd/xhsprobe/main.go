@@ -30,7 +30,7 @@ const dumpJS = `(pattern) => {
 
 func main() {
 	// 用法: xhsprobe URL OUTDIR [步骤...]  步骤: wait:秒 | click:文字 | clicksel:CSS | type:CSS=>文字 | enter | dump:正则 | shot:名字 | text:CSS
-	b := browser.NewBrowser(true, browser.WithFingerprintSeed(configs.FingerprintSeedFromEnv()))
+	b := browser.NewBrowser(true, browser.WithFingerprintSeed(configs.FingerprintSeedFromEnv()), browser.WithProxy(configs.ProxyFromEnv()))
 	defer b.Close()
 	page := b.NewPage().Timeout(10 * time.Minute)
 	page.MustNavigate(os.Args[1])
@@ -87,6 +87,18 @@ func main() {
 			r, err := page.Eval(`(s) => [...document.querySelectorAll(s)].map(e => e.innerText).join('\n---\n')`, arg)
 			if err == nil {
 				fmt.Println("== text", arg)
+				fmt.Println(r.Value.String())
+			}
+		case "stable":
+			start := time.Now()
+			err := page.Timeout(70 * time.Second).WaitStable(time.Second)
+			fmt.Println("== stable", time.Since(start).Round(time.Second), err)
+		case "eval":
+			r, err := page.Eval(`(src) => String(eval(src))`, arg)
+			fmt.Println("== eval", arg)
+			if err != nil {
+				fmt.Println("eval err", err)
+			} else {
 				fmt.Println(r.Value.String())
 			}
 		case "shot":
