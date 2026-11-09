@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xpzouying/xiaohongshu-mcp/configs"
 )
 
 var (
@@ -42,6 +44,12 @@ func NormalizeNoteURL(raw, feedID, xsecToken string, resolve func(string) (strin
 			if match == nil || token == "" {
 				return "", fmt.Errorf("链接里缺少笔记 ID 或 xsec_token")
 			}
+			// 设计是：手机分享的短链点点读不了视频，只有 PC 的长链才能问点点；
+			// 手机/电脑分享的链接笔记 ID 和 xsec_token 一样，只换成 PC 分享长链的格式。
+			switch parsed.Query().Get("xsec_source") {
+			case "app_share", "pc_share":
+				return buildPCShareURL(match[1], token), nil
+			}
 			return buildNoteURL(match[1], token), nil
 		default:
 			return "", fmt.Errorf("不是小红书链接: %s", host)
@@ -64,10 +72,25 @@ func buildNoteURL(feedID, xsecToken string) string {
 	return webURL(fmt.Sprintf("/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, url.QueryEscape(xsecToken)))
 }
 
+// buildPCShareURL 按电脑端“复制链接”的格式拼长链。
+func buildPCShareURL(feedID, xsecToken string) string {
+	return webURL(fmt.Sprintf("/discovery/item/%s?source=webshare&xhsshare=pc_web&xsec_token=%s&xsec_source=pc_share", feedID, xsecToken))
+}
+
 // ResolveShortLink 只读取短链的跳转地址，不跟随跳转、不开浏览器。
 func ResolveShortLink(link string) (string, error) {
+	// 设计是：xhslink 短链直连解析会失败（EOF），短链解析也要跟浏览器一样走 XHS_PROXY。
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if raw := configs.ProxyFromEnv(); raw != "" {
+		proxyURL, err := url.Parse(raw)
+		if err != nil {
+			return "", fmt.Errorf("XHS_PROXY 无效: %w", err)
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
 	client := &http.Client{
-		Timeout: 15 * time.Second,
+		Transport: transport,
+		Timeout:   15 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

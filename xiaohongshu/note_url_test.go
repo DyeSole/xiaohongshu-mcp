@@ -41,3 +41,20 @@ func TestNormalizeNoteURL(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeNoteURLShareToPC(t *testing.T) {
+	t.Setenv("XHS_WEB_BASE", "")
+	const want = "https://www.xiaohongshu.com/discovery/item/6af0a75d0000000015025b8d?source=webshare&xhsshare=pc_web&xsec_token=CBU=&xsec_source=pc_share"
+	resolve := func(string) (string, error) {
+		return "https://www.xiaohongshu.com/discovery/item/6af0a75d0000000015025b8d?app_platform=ios&xsec_source=app_share&type=video&xsec_token=CBU=", nil
+	}
+	for _, raw := range []string{
+		"回避型 https://xhslink.cn/o/5IqTpDTWScr 先复制这段文字",
+		"https://www.xiaohongshu.com/discovery/item/6af0a75d0000000015025b8d?source=webshare&xhsshare=pc_web&xsec_token=CBU=&xsec_source=pc_share",
+	} {
+		got, err := NormalizeNoteURL(raw, "", "", resolve)
+		if err != nil || got != want {
+			t.Errorf("%s: got %q err %v", raw, got, err)
+		}
+	}
+}

@@ -29,6 +29,8 @@ const (
 	diandianSourceTitle   = ".xhs-ai-chat-page-right a.title"
 	// 2026-11 改版后的参考来源卡片：没有笔记链接了，点卡片才跳到 /explore/ID?xsec_token=…
 	diandianSourceCard = ".xhs-ai-chat-page-right .xhs-sq-source-card"
+	// 粘贴笔记链接后输入区出现的笔记卡片。
+	diandianNoteCard = ".ai-chat-input-box .xhs-note-attachments__card"
 )
 
 // DiandianSource 点点“参考来源”里的一篇笔记。
@@ -53,7 +55,7 @@ func NewAskDiandianAction(page *rod.Page) *AskDiandianAction {
 // Ask 在点点里发"笔记链接 + 问题"，返回点点的回答文字。
 func (a *AskDiandianAction) Ask(ctx context.Context, noteURL, question string) (string, error) {
 	page := a.page.Context(ctx).Timeout(diandianAnswerTimeout + time.Minute)
-	before, err := sendDiandian(ctx, page, noteURL+" "+question)
+	before, err := sendDiandian(ctx, page, noteURL, question)
 	if err != nil {
 		return "", err
 	}
@@ -65,7 +67,7 @@ func (a *AskDiandianAction) Ask(ctx context.Context, noteURL, question string) (
 func (a *AskDiandianAction) FindNotes(ctx context.Context, keyword string) (string, []DiandianSource, error) {
 	page := a.page.Context(ctx).Timeout(diandianAnswerTimeout + time.Minute)
 	// 设计是：你依据小红书帖子帮我查查「关键词」（user 定的原话）。
-	before, err := sendDiandian(ctx, page, "你依据小红书帖子帮我查查「"+keyword+"」")
+	before, err := sendDiandian(ctx, page, "", "你依据小红书帖子帮我查查「"+keyword+"」")
 	if err != nil {
 		return "", nil, err
 	}
@@ -215,7 +217,7 @@ func waitDiandianHistory(ctx context.Context, page *rod.Page) diandianCounts {
 }
 
 // sendDiandian 打开点点，点一下输入框，把整段文字粘进去并发送；返回发送前的条数。
-func sendDiandian(ctx context.Context, page *rod.Page, text string) (diandianCounts, error) {
+func sendDiandian(ctx context.Context, page *rod.Page, link, text string) (diandianCounts, error) {
 
 	if err := page.Navigate(webURL("/ai_chat")); err != nil {
 		return diandianCounts{}, fmt.Errorf("打开点点失败: %w", err)
@@ -243,7 +245,14 @@ func sendDiandian(ctx context.Context, page *rod.Page, text string) (diandianCou
 	}
 	humanize.Delay(ctx, humanize.AfterClick)
 
-	// 链接和问题一起整段粘贴：输入后输入框会重新渲染，逐字输入会拿着失效的元素一直等。
+	// 设计是：user 在点点里粘贴笔记链接，点点会把它变成笔记卡片，这样视频也能看到；
+	// 直接把链接当文字输进去点点读不了视频。所以链接先单独“粘贴”，等卡片出来再输问题。
+	if link != "" {
+		if err := pasteDiandianLink(ctx, page, link); err != nil {
+			return diandianCounts{}, err
+		}
+	}
+	// 问题整段输入：输入后输入框会重新渲染，逐字输入会拿着失效的元素一直等。
 	if err := page.InsertText(text); err != nil {
 		return diandianCounts{}, fmt.Errorf("无法输入问题: %w", err)
 	}
@@ -291,4 +300,30 @@ func waitDiandianAnswer(ctx context.Context, page *rod.Page, before diandianCoun
 		time.Sleep(time.Second)
 	}
 	return "", fmt.Errorf("等待点点回答超时（%s）", diandianAnswerTimeout)
+}
+
+// pasteDiandianLink 往真输入框发一次粘贴事件，等点点把链接变成笔记卡片（.xhs-note-attachments__card）。
+// 点过输入框后页面会在前面插一个隐藏的假输入框（带 data-hp-kind），要跳过它。
+// 等不到卡片就退回原来的做法：把链接当文字输进去。
+func pasteDiandianLink(ctx context.Context, page *rod.Page, link string) error {
+	if _, err := page.Eval(`(link) => {
+		const all = [...document.querySelectorAll(".ai-chat-input-box textarea, .ai-chat-welcome__input textarea")];
+		const box = all.find(t => !t.hasAttribute("data-hp-kind")) || all[all.length - 1];
+		if (!box) throw new Error("no input");
+		box.focus();
+		const data = new DataTransfer();
+		data.setData("text/plain", link);
+		box.dispatchEvent(new ClipboardEvent("paste", {clipboardData: data, bubbles: true, cancelable: true}));
+	}`, link); err != nil {
+		return fmt.Errorf("粘贴笔记链接失败: %w", err)
+	}
+	for i := 0; i < 15; i++ {
+		humanize.Delay(ctx, humanize.AfterClick)
+		if has, _, err := page.Has(diandianNoteCard); err == nil && has {
+			logrus.Infof("点点笔记卡片已出现")
+			return nil
+		}
+	}
+	logrus.Warnf("点点没有把链接变成笔记卡片，按文字发送")
+	return page.InsertText(link + " ")
 }
